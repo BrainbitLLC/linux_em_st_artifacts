@@ -7,7 +7,7 @@ For calculations it is necessary to use an EEG signal.
 The algorithm processes the data by a sliding window of a given length with a given frequency. If artifacts are detected on one of the bipolar channels, the artifacts on the second bipolar channel are checked, and if there are no artifacts, they are switched to that channel; in case of artifacts on both channels, the spectral values and values of mental levels are filled with previous actual values, while the counter of the number of successive artifact windows increases.
 
 ## Artifacts
-When the maximum number of consecutive artifact windows is reached, `MathLibIsArtifactedSequence()` returns true, which allows you to give the user information about the need to check the position of the device. If there is no need to give notification of momentary artifacts, you can use this function as the primary for artifact notifications. Otherwise, use `MathLibIsBothSidesArtifacted()` to check for momentary artifacts, returning true for artifacts on both bipolar channels for the current window.
+When the maximum number of consecutive artifact windows is reached, `MathLibIsArtifactedSequence()` returns true, which allows you to give the user information about the need to check the position of the device. This flag is usually raised 4 sec after receiving continuous artifacts. If there is no need to give notification of momentary artifacts, you can use this function as the primary for artifact notifications. Otherwise, use `MathLibIsBothSidesArtifacted()` to check for momentary artifacts, returning true for artifacts on both bipolar channels for the current window.
 
 ## Usage
 
@@ -23,6 +23,7 @@ When reading spectral and mental values an array of appropriate structures (`Spe
 
 In this version the filters are built-in and clearly defined: 
 BandStop_45_55, BandStop_55_65, BandStop_62, HighPass_10, LowPass_30
+
 ### Calibration
 
 According to the results of calibration, the average base value of alpha and beta waves expression is determined in percent, which are further used to calculate the relative mental levels.
@@ -73,7 +74,6 @@ Separate setting is the number of windows after the artifact with the previous a
 ## Initialization
 ### Main parameters
 
-##### C++
 ```cpp
 MathLibSetting mathLibSetting;
 mathLibSetting.sampling_rate = 250;
@@ -81,20 +81,20 @@ mathLibSetting.process_win_freq = 25;
 mathLibSetting.n_first_sec_skipped = 4;
 mathLibSetting.fft_window = 1000;
 mathLibSetting.bipolar_mode = true;
-mathLibSetting.squared_spectrum = false;
+mathLibSetting.squared_spectrum = true;
 mathLibSetting.channels_number = 4;
-mathLibSetting.channel_for_analysis = 3;
+mathLibSetting.channel_for_analysis = 0;
 
 ArtifactDetectSetting artifactDetectSetting;
-artifactDetectSetting.art_bord = 70;
-artifactDetectSetting.allowed_percent_artpoints = 50;
-artifactDetectSetting.total_pow_border = 3 * 1e7;
+artifactDetectSetting.art_bord = 110;
+artifactDetectSetting.allowed_percent_artpoints = 70;
+artifactDetectSetting.total_pow_border = 40 * 1e7;
 artifactDetectSetting.raw_betap_limit = 800000;
-artifactDetectSetting.spect_art_by_totalp = false;
+artifactDetectSetting.spect_art_by_totalp = true;
 artifactDetectSetting.global_artwin_sec = 4;
 artifactDetectSetting.num_wins_for_quality_avg = 125;
-artifactDetectSetting.hanning_win_spectrum = true;
-artifactDetectSetting.hamming_win_spectrum = false;
+artifactDetectSetting.hanning_win_spectrum = false;
+artifactDetectSetting.hamming_win_spectrum = true;
 
 ShortArtifactDetectSetting shortArtifactDetectSetting;
 shortArtifactDetectSetting.ampl_art_detect_win_size = 200;
@@ -103,7 +103,7 @@ shortArtifactDetectSetting.ampl_art_extremum_border = 25;
 
 MentalAndSpectralSetting mentalAndSpectralSetting;
 mentalAndSpectralSetting.n_sec_for_averaging = 2;
-mentalAndSpectralSetting.n_sec_for_instant_estimation = 2;
+mentalAndSpectralSetting.n_sec_for_instant_estimation = 4;
 
 OpStatus opSt;
 MathLib* tMathPtr = createMathLib(mathLibSetting, artifactDetectSetting, shortArtifactDetectSetting, mentalAndSpectralSetting, &opSt);
@@ -111,12 +111,11 @@ MathLib* tMathPtr = createMathLib(mathLibSetting, artifactDetectSetting, shortAr
 
 ### Optional parameters
 
-##### C++
 ```cpp
 OpStatus opSt;
 
 // setting calibration length
-int calibration_length = 8;
+int calibration_length = 6;
 MathLibSetCallibrationLength(tMathPtr, calibration_length, &opSt);
 
 // type of evaluation of instant mental levels
@@ -167,7 +166,7 @@ Side of current artufact. Enum with values:
 
 ## Usage
 1. If you need calibration start calibration right after library init:
-##### C++
+
 ```cpp
 OpStatus opSt;
 MathLibStartCalibration(tMathPtr, &opSt);
@@ -175,7 +174,7 @@ MathLibStartCalibration(tMathPtr, &opSt);
 
 2. Adding and process data
 In bipolar mode:
-##### C++
+
 ```cpp
 RawChannels* samples = new RawChannels[SAMPLES_COUNT];
 ...
@@ -185,7 +184,6 @@ MathLibProcessDataArr(tMathPtr);
 
 In multy-channel mode:
 
-##### C++
 ```cpp
 RawChannelsArray* samples = new RawChannelsArray[SAMPLES_COUNT];
 ...
@@ -193,7 +191,7 @@ MathLibPushDataArr(tMathPtr, samples, SAMPLES_COUNT);
 MathLibProcessDataArr(tMathPtr);
 ``` 
 2. Then check calibration status if you need to calibrate values:
-##### C++
+
 ```cpp
 OpStatus os;
 bool calibrationFinished = false;
@@ -203,7 +201,7 @@ int calibrationProgress = 0;
 MathLibGetCallibrationPercents(tMathPtr, &calibrationProgress, &os);
 ``` 
 3. If calibration finished (or you don't need to calibrate) read output values:
-##### C++
+
 ```cpp
 OpStatus opSt;
 
@@ -221,21 +219,21 @@ MathLibReadSpectralDataPercentsArr(tMathPtr, sp_data, &size, &opSt);
 ``` 
 4. Check artifacts
 4.1. During calibration
-##### C++
+
 ```cpp
 if(MathLibIsBothSidesArtifacted(tMathPtr)){
     // signal corruption
 }
 ``` 
 4.2. After (without) calibration
-##### C++
+
 ```cpp
 if(MathLibIsArtifactedSequence(tMathPtr)){
     // signal corruption
 }
 ``` 
 ## Finishing work with the library
-##### C++
+
 ```cpp
 freeMathLib(tMathPtr);
 ```	
